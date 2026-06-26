@@ -46,6 +46,8 @@ var forwardSelfMessages = getEnvBool("FORWARD_SELF", true)
 var fullHistoryPairFlag = flag.Bool("full-history-pair", false,
 	"Request full history at pair time (only effective when re-pairing; no-op for existing sessions)")
 
+const whatsmeowDBPath = "store/whatsapp.db"
+
 // getEnvBool reads a boolean env var with a default.
 // Accepts: 1/true/yes/on and 0/false/no/off (case-insensitive)
 func getEnvBool(key string, def bool) bool {
@@ -75,7 +77,8 @@ type Message struct {
 
 // Database handler for storing message history
 type MessageStore struct {
-	db *sql.DB
+	db   *sql.DB
+	waDB *sql.DB // whatsmeow's DB for contact name resolution fallback
 }
 
 type ChatEphemeralSettings struct {
@@ -149,12 +152,41 @@ func NewMessageStore() (*MessageStore, error) {
 		return nil, fmt.Errorf("failed to create tables: %v", err)
 	}
 
+	// Open whatsmeow's database read-only for contact name resolution fallback.
+	// Missing DBs are expected on first run and should not create a new file.
+	waDB, err := openWhatsmeowContactsDB(whatsmeowDBPath)
+	if err != nil {
+		fmt.Printf("Warning: could not open whatsmeow database for contact resolution: %v\n", err)
+	}
+
 	if err := ensureMessageStoreSchema(db); err != nil {
 		_ = db.Close()
+		if waDB != nil {
+			_ = waDB.Close()
+		}
 		return nil, err
 	}
 
-	return &MessageStore{db: db}, nil
+	return &MessageStore{db: db, waDB: waDB}, nil
+}
+
+func openWhatsmeowContactsDB(path string) (*sql.DB, error) {
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?mode=ro", path))
+	if err != nil {
+		return nil, err
+	}
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return db, nil
 }
 
 func ensureMessageStoreSchema(db *sql.DB) error {
@@ -546,9 +578,16 @@ func (store *MessageStore) MigrateLegacyLIDSendersToPhones(whatsappDBPath string
 	return nil
 }
 
-// Close the database connection
+// Close the database connections
 func (store *MessageStore) Close() error {
-	return store.db.Close()
+	var waErr error
+	if store.waDB != nil {
+		waErr = store.waDB.Close()
+	}
+	if err := store.db.Close(); err != nil {
+		return err
+	}
+	return waErr
 }
 
 // Store a chat in the database. An empty `name` preserves any existing
@@ -2670,22 +2709,55 @@ func GetChatName(client *whatsmeow.Client, messageStore *MessageStore, jid types
 		// This is an individual contact
 		logger.Infof("Getting name for contact: %s", chatJID)
 
-		// Just use contact info (full name)
+		// Use contact info (full name)
 		contact, err := client.Store.Contacts.GetContact(context.Background(), jid)
 		if err == nil && contact.FullName != "" {
 			name = contact.FullName
-		} else if sender != "" {
-			// Fallback to sender
-			name = sender
 		} else {
-			// Last fallback to JID
-			name = jid.User
+			name = lookupLocalContactName(client, messageStore, chatJID, logger)
+
+			if name == "" {
+				if sender != "" {
+					name = sender
+				} else {
+					name = jid.User
+				}
+			}
 		}
 
 		logger.Infof("Using contact name: %s", name)
 	}
 
 	return name
+}
+
+func lookupLocalContactName(client *whatsmeow.Client, messageStore *MessageStore, chatJID string, logger waLog.Logger) string {
+	if client == nil || client.Store == nil || client.Store.ID == nil || messageStore == nil || messageStore.waDB == nil {
+		return ""
+	}
+
+	var localName string
+	err := messageStore.waDB.QueryRow(
+		`SELECT COALESCE(
+			NULLIF(full_name, ''),
+			NULLIF(push_name, ''),
+			NULLIF(first_name, ''),
+			NULLIF(business_name, ''),
+			''
+		) FROM whatsmeow_contacts WHERE our_jid = ? AND their_jid = ?`,
+		client.Store.ID.String(),
+		chatJID,
+	).Scan(&localName)
+	if err == nil {
+		if localName != "" {
+			logger.Infof("Using local contact name for %s: %s", chatJID, localName)
+		}
+		return localName
+	}
+	if err != sql.ErrNoRows && !strings.Contains(err.Error(), "no such table: whatsmeow_contacts") {
+		logger.Warnf("Failed to query local contact name for %s: %v", chatJID, err)
+	}
+	return ""
 }
 
 // callChatJID resolves the chat JID that a call belongs to. For group calls
