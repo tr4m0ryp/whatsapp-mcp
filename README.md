@@ -335,7 +335,7 @@ Copy `.env.example` to `.env` and configure as needed:
 | `WHATSAPP_DB_PATH`     | `../whatsapp-bridge/store/messages.db`   | Path to SQLite database                      |
 | `WHATSMEOW_DB_PATH`    | `../whatsapp-bridge/store/whatsapp.db`   | whatsmeow DB used for LID ↔ phone resolution |
 | `WHATSAPP_API_URL`     | `http://localhost:8080/api`              | Go bridge REST API URL                       |
-| `WHATSAPP_BRIDGE_TOKEN` | generated next to `WHATSMEOW_DB_PATH` as `.bridge-token` | Bearer token required for bridge REST calls |
+| `WHATSAPP_BRIDGE_TOKEN` | generated next to `WHATSMEOW_DB_PATH` as `.bridge-token` | Bearer token for bridge REST calls; also signed onto outbound webhook POSTs |
 | `WHATSAPP_MEDIA_ROOTS` | `~/.local/share/whatsapp-mcp/outbox`     | Path-list of directories allowed for outbound media files |
 | `WHATSAPP_MCP_TRANSPORT` | `stdio`                                | MCP transport to serve clients: `stdio`, `http`, or `sse` |
 | `WHATSAPP_MCP_HOST`    | `127.0.0.1`                              | Bind address for the `http`/`sse` transports |
@@ -377,6 +377,26 @@ permissions, and prints a setup banner. The MCP server reads
 directory as `WHATSMEOW_DB_PATH`. For split deployments, containers, or process
 managers that do not share the store directory, set the same
 `WHATSAPP_BRIDGE_TOKEN` value for both the bridge and MCP server.
+
+The bridge also signs its **outbound** webhook POSTs (to `WEBHOOK_URL`) with this
+same token, sent as an `X-Bridge-Token: <token>` header — a dedicated header
+rather than `Authorization`, so it never collides with a receiver's own
+Authorization-based auth (e.g. HTTP Basic auth embedded in `WEBHOOK_URL` as
+`http://user:pass@host/...`, which `net/http` applies automatically as long as
+the bridge doesn't set its own `Authorization` header). The header is attached only when a token is configured **and** `WEBHOOK_URL` was
+explicitly set — never to the built-in local default. The bridge token also
+authorizes `/api/*` calls like sending messages, and nothing has vetted the
+implicit default address, so it must never be handed to whatever process
+happens to be listening there. Upgrades that predate the token rollout, or
+that never set `WEBHOOK_URL`, keep working unchanged. The webhook client also
+never follows redirects, so a misconfigured or malicious endpoint can't
+redirect the bridge into leaking the token to a different host. If your
+webhook receiver enforces the token, set its copy to this exact value: e.g.
+the AutoHub hub's `WHATSAPP_BRIDGE_TOKEN` must equal this bridge's token (from
+`.bridge-token` or its own env) — the hub accepts it via `X-Bridge-Token` or
+`Authorization: Bearer`. The bridge always sends the token it has; the hub
+rejects unauthenticated forwards only once its `WHATSAPP_BRIDGE_TOKEN` is set
+to the matching value.
 
 Outbound `media_path` values are confined to `WHATSAPP_MEDIA_ROOTS`. The default
 outbox is `~/.local/share/whatsapp-mcp/outbox`, created on bridge startup. Move
