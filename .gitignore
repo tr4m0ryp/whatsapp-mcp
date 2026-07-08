@@ -1,0 +1,17 @@
+# WhatsApp session, message archive, downloaded media, auth token
+bridge/store/
+
+# Go build output
+bridge/bridge
+bridge/whatsapp-bridge
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Local env
+.env
