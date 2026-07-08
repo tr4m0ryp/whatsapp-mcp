@@ -5,7 +5,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Go 1.25+](https://img.shields.io/badge/go-1.25+-00ADD8.svg)](https://go.dev/)
 
-A Model Context Protocol (MCP) server for WhatsApp, enabling Claude to read and send WhatsApp messages.
+A Model Context Protocol (MCP) server for WhatsApp, enabling Claude to read and send WhatsApp messages..
 
 > Originally created by [Luke Harries](https://github.com/lharries/whatsapp-mcp). Maintained by [Very Good Plugins](https://verygoodplugins.com/?utm_source=github).
 
