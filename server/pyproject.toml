@@ -13,9 +13,9 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "httpx>=0.28.1",
-    "mcp[cli]>=1.27.1",
+    "fastmcp>=3.4,<4",
     "requests>=2.34.2",
+    "python-dotenv",
     "anyio<4.14",
 ]
 
