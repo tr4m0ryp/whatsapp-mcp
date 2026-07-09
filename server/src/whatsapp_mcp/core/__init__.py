@@ -1,5 +1,6 @@
 """Core layer: configuration, canonical models, and serialization."""
 
+from .config import Config, load_config
 from .models import Chat, Contact, Message, MessageContext
 from .serialize import (
     chat_to_dict,
@@ -8,7 +9,7 @@ from .serialize import (
     format_messages_list,
     msg_to_dict,
 )
-from .transport import resolve_host, resolve_port, resolve_transport
+from .transport import resolve_transport
 
 __all__ = [
     "Chat",
@@ -20,7 +21,7 @@ __all__ = [
     "format_message",
     "format_messages_list",
     "msg_to_dict",
-    "resolve_host",
-    "resolve_port",
+    "Config",
+    "load_config",
     "resolve_transport",
 ]
