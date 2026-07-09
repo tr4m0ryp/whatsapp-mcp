@@ -6,7 +6,7 @@ functions (rather than closures created inside a registration call) lets
 tests import and exercise them directly.
 """
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from . import chats, contacts, media, messages
 
