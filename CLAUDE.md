@@ -39,12 +39,15 @@ and `.bridge-token` inside it carries the shared REST credential.
 - `internal/testutil/` -- shared test fakes (mock LID store, in-memory DB)
 
 `server/src/whatsapp_mcp/` (Python, package `whatsapp_mcp`):
-- `core/` -- config, transport resolvers, dataclasses, serialization
+- `core/` -- config (paths + MCP transport/auth dataclass), dataclasses,
+  serialization
 - `db/` -- read-side SQLite queries (identity/LID, messages, chats, contacts)
 - `bridge/` -- REST client for the Go bridge (token discovery + POSTs)
 - `media/` -- ffmpeg Opus/Ogg conversion for voice messages
 - `tools/` -- `@mcp.tool` wrappers, thin over db/bridge; `TOOLS` lists +
   `register_all(mcp)`
+- `auth.py` -- pluggable auth for http transport (WorkOS AuthKit / WorkOS
+  proxy / OIDC / static bearer; fail-closed when exposed without auth)
 - `server.py` -- FastMCP app; entry points `whatsapp-mcp` /
   `python -m whatsapp_mcp`
 
@@ -56,7 +59,8 @@ Every file < 300 lines; split into deeper subpackages before exceeding it.
 # 1. Bridge (QR pairing on first run; prints the REST token once)
 cd bridge && go run .
 
-# 2. MCP server (stdio by default; http/sse via WHATSAPP_MCP_TRANSPORT)
+# 2. MCP server (stdio by default; remote via MCP_TRANSPORT=http + OAuth,
+#    same auth pattern as finding_house_mcp -- see .env.example)
 cd server && uv run whatsapp-mcp
 ```
 
