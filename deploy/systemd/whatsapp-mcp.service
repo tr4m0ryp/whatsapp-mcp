@@ -1,0 +1,17 @@
+[Unit]
+Description=WhatsApp MCP server (FastMCP over Streamable HTTP)
+After=network-online.target whatsapp-bridge.service
+Wants=network-online.target
+
+[Service]
+User=whatsapp
+Group=whatsapp
+WorkingDirectory=/opt/whatsapp_mcp/server
+EnvironmentFile=/etc/whatsapp-mcp.env
+# Bind to loopback only; Caddy terminates TLS and reverse-proxies to us.
+ExecStart=/usr/local/bin/uv run --no-sync whatsapp-mcp
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

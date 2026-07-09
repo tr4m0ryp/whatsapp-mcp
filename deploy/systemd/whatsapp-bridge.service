@@ -1,0 +1,18 @@
+[Unit]
+Description=WhatsApp bridge (whatsmeow session + loopback REST API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=whatsapp
+Group=whatsapp
+WorkingDirectory=/opt/whatsapp_mcp/bridge
+# store/ (whatsapp.db session + messages.db archive + .bridge-token) lives
+# under WorkingDirectory on the VM's persistent disk, so the pairing survives
+# restarts and redeploys.
+ExecStart=/opt/whatsapp_mcp/bridge/whatsapp-bridge
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
