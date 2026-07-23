@@ -40,6 +40,19 @@ func main() {
 	logger := waLog.Stdout("Client", "DEBUG", true)
 	logger.Infof("Starting WhatsApp client...")
 
+	// Refuse to start if a previous run halted on a terminal WhatsApp
+	// condition. This runs before anything touches the network: the whole
+	// point is that a banned or logged-out deployment stops reaching WhatsApp
+	// at all, rather than being resurrected every few seconds by the service
+	// manager.
+	if halted, err := wa.CheckHaltFile(); err != nil {
+		logger.Errorf("Failed to check halt file: %v", err)
+		os.Exit(1)
+	} else if halted != "" {
+		wa.PrintHaltBanner(halted)
+		return
+	}
+
 	forwardSelf := config.ForwardSelf()
 	if forwardSelf {
 		logger.Infof("FORWARD_SELF enabled: forwarding self messages to webhook")
