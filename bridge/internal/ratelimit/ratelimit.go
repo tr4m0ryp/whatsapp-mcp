@@ -80,8 +80,7 @@ func (l *Limiter) Check(chatJID string) Decision {
 	warm, err := l.store.HasInboundHistory(chatJID)
 	if err != nil {
 		return Decision{
-			Allowed: false,
-			Reason:  fmt.Sprintf("cannot determine conversation history for %s: %v", chatJID, err),
+			Reason: fmt.Sprintf("cannot determine conversation history for %s: %v", chatJID, err),
 		}
 	}
 	if warm {
@@ -92,7 +91,7 @@ func (l *Limiter) Check(chatJID string) Decision {
 
 	if l.dailyCap == 0 {
 		return Decision{
-			Allowed:    false,
+			Cold:       true,
 			Reason:     "cold sends are disabled (WHATSAPP_COLD_DAILY_CAP=0)",
 			RetryAfter: 0,
 		}
@@ -101,13 +100,13 @@ func (l *Limiter) Check(chatJID string) Decision {
 	started, err := l.store.CountColdConversationsSince(startOfDay(now))
 	if err != nil {
 		return Decision{
-			Allowed: false,
-			Reason:  fmt.Sprintf("cannot count today's new conversations: %v", err),
+			Cold:   true,
+			Reason: fmt.Sprintf("cannot count today's new conversations: %v", err),
 		}
 	}
 	if started >= l.dailyCap {
 		return Decision{
-			Allowed: false,
+			Cold: true,
 			Reason: fmt.Sprintf("daily cap reached: %d/%d new conversations started today",
 				started, l.dailyCap),
 			RetryAfter: startOfDay(now).AddDate(0, 0, 1).Sub(now),
@@ -119,7 +118,7 @@ func (l *Limiter) Check(chatJID string) Decision {
 	if !l.lastColdSend.IsZero() {
 		if elapsed := now.Sub(l.lastColdSend); elapsed < l.minInterval {
 			return Decision{
-				Allowed: false,
+				Cold: true,
 				Reason: fmt.Sprintf("minimum %s between new conversations; %s elapsed",
 					l.minInterval, elapsed.Round(time.Second)),
 				RetryAfter: l.minInterval - elapsed,
@@ -127,18 +126,13 @@ func (l *Limiter) Check(chatJID string) Decision {
 		}
 	}
 
-	return Decision{Allowed: true}
+	return Decision{Allowed: true, Cold: true}
 }
 
-// RecordCold marks that a cold send just went out, starting the interval
-// clock. Called only after a send succeeds, so a failed send does not consume
-// the caller's budget.
-func (l *Limiter) RecordCold(chatJID string) {
+// RecordCold starts the interval clock. Called only after a cold send
+// succeeds, so a rejected or failed send does not consume the budget.
+func (l *Limiter) RecordCold() {
 	if l == nil {
-		return
-	}
-	warm, err := l.store.HasInboundHistory(chatJID)
-	if err == nil && warm {
 		return
 	}
 	l.mu.Lock()
