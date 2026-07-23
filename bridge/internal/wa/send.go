@@ -61,6 +61,25 @@ func ResolveRecipientJID(client *whatsmeow.Client, recipient string) (types.JID,
 	return recipientJID, nil
 }
 
+// StorageChatJID resolves a recipient string to the chat JID that SendMessage
+// will persist under, without contacting WhatsApp. Callers that need to look a
+// recipient up in the archive before sending — the rate limiter, for one —
+// must key on the same value the rows use, or an @lid input would look like a
+// stranger even in an established chat.
+func StorageChatJID(client *whatsmeow.Client, recipient string) string {
+	var jid types.JID
+	if strings.Contains(recipient, "@") {
+		parsed, err := types.ParseJID(recipient)
+		if err != nil {
+			return recipient
+		}
+		jid = parsed
+	} else {
+		jid = types.JID{User: recipient, Server: types.DefaultUserServer}
+	}
+	return ResolveUserJID(client, jid, types.EmptyJID).String()
+}
+
 // SendMessage sends a WhatsApp message, optionally with media or as a quoted
 // reply, and persists the outbound message locally.
 func SendMessage(client *whatsmeow.Client, messageStore *store.MessageStore, recipient string, message string, mediaPath string, quotedMsgID string, quotedSenderJID string, quotedContent string) (bool, string) {
