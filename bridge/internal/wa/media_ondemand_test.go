@@ -34,7 +34,9 @@ func TestHandleMessage_MediaIsNotDownloadedOnArrival(t *testing.T) {
 	client := testutil.NewClient(&testutil.MockLIDStore{})
 	ms := testutil.NewMessageStore(t)
 
-	newHandler(client, ms).HandleMessage(buildImageMessage(phonePN, phonePN, false, ""))
+	// Full download metadata: under the old behaviour this is exactly the
+	// message that triggered a synchronous fetch.
+	newHandler(client, ms).HandleMessage(buildDownloadableImageMessage(phonePN, phonePN, ""))
 
 	select {
 	case <-webhookCh:
