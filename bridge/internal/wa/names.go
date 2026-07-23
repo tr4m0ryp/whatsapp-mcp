@@ -82,7 +82,7 @@ func GetChatName(client *whatsmeow.Client, messageStore *store.MessageStore, jid
 		}
 		if name == "" {
 			// Fallback name for groups
-			name = fmt.Sprintf("Group %s", jid.User)
+			name = groupPlaceholderName(jid)
 		}
 
 		logger.Infof("Using group name: %s", name)
@@ -110,6 +110,13 @@ func GetChatName(client *whatsmeow.Client, messageStore *store.MessageStore, jid
 	}
 
 	return name
+}
+
+// groupPlaceholderName is the stand-in stored for a group whose real name is
+// not known yet. Recognisable on sight so a later, network-allowed lookup can
+// tell it apart from a name the user actually sees.
+func groupPlaceholderName(jid types.JID) string {
+	return fmt.Sprintf("Group %s", jid.User)
 }
 
 func lookupLocalContactName(client *whatsmeow.Client, messageStore *store.MessageStore, chatJID string, logger waLog.Logger) string {

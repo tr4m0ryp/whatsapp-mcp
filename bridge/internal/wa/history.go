@@ -46,7 +46,10 @@ func (h *Handler) HandleHistorySync(historySync *events.HistorySync) {
 		chatJID := resolved.String()
 
 		// Get appropriate chat name by passing the history sync conversation directly
-		name := GetChatName(client, messageStore, resolved, chatJID, conversation, "", logger)
+		// allowNetwork=false: see GetChatName. A sync chunk can carry hundreds
+		// of conversations, and resolving each unknown group over the wire here
+		// would both burst metadata queries and block the event goroutine.
+		name := GetChatName(client, messageStore, resolved, chatJID, conversation, "", false, logger)
 
 		// Process messages
 		messages := conversation.Messages

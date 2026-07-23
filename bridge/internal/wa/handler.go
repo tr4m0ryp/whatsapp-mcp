@@ -79,7 +79,7 @@ func (h *Handler) HandleMessage(msg *events.Message) {
 	sender := resolvedSender.User
 
 	// Get appropriate chat name (pass resolved JID so contact lookup works)
-	name := GetChatName(client, messageStore, resolvedChat, chatJID, nil, sender, logger)
+	name := GetChatName(client, messageStore, resolvedChat, chatJID, nil, sender, true, logger)
 
 	// If contact resolution fails (common for LIDs), PushName is often the best available display name.
 	// Only apply for direct messages (not groups) and only when the stored name is the numeric JID user.
