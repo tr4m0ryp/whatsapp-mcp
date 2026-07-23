@@ -17,6 +17,7 @@ import (
 	"go.mau.fi/whatsmeow"
 
 	"whatsapp-mcp/bridge/internal/auth"
+	"whatsapp-mcp/bridge/internal/ratelimit"
 	"whatsapp-mcp/bridge/internal/store"
 )
 
@@ -43,7 +44,6 @@ func (s *Server) NewMux() *http.ServeMux {
 	mux.HandleFunc("/api/send", wrap(s.handleSend))
 	mux.HandleFunc("/api/react", wrap(s.handleReact))
 	mux.HandleFunc("/api/download", wrap(s.handleDownload))
-	mux.HandleFunc("/api/typing", wrap(s.handleTyping))
 	return mux
 }
 

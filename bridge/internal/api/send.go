@@ -28,7 +28,7 @@ type SendMessageRequest struct {
 // not HTTP metadata — can read how long to wait and say so instead of retrying
 // blindly into the same limit.
 type SendMessageResponse struct {
-	Success           bool `json:"success"`
+	Success           bool   `json:"success"`
 	Message           string `json:"message"`
 	RetryAfterSeconds int    `json:"retry_after_seconds,omitempty"`
 }
