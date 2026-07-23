@@ -77,6 +77,20 @@ ${PUBLIC_HOST} {
 }
 EOF
 
+echo "== bridge env file =="
+# Written only if absent, so a hand-tuned device name or cold-send limit
+# survives a re-provision.
+if [ ! -f /etc/whatsapp-bridge.env ]; then
+  cat >/etc/whatsapp-bridge.env <<'EOF'
+# Name shown under Linked Devices on the phone. Read only at pair time.
+WHATSAPP_DEVICE_NAME=Debian Linux
+# Cold-send limits (see .env.example). Replies are never metered.
+WHATSAPP_COLD_MIN_INTERVAL_SEC=30
+WHATSAPP_COLD_DAILY_CAP=50
+EOF
+  chmod 644 /etc/whatsapp-bridge.env
+fi
+
 echo "== systemd units =="
 install -m644 "$APP_DIR/deploy/systemd/whatsapp-bridge.service" /etc/systemd/system/
 install -m644 "$APP_DIR/deploy/systemd/whatsapp-mcp.service" /etc/systemd/system/
