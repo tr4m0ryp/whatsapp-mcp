@@ -15,7 +15,14 @@ import (
 )
 
 // GetChatName determines the appropriate name for a chat based on JID and other info.
-func GetChatName(client *whatsmeow.Client, messageStore *store.MessageStore, jid types.JID, chatJID string, conversation interface{}, sender string, logger waLog.Logger) string {
+//
+// allowNetwork controls whether an unknown group name may be resolved by
+// asking WhatsApp. History sync passes false: it delivers conversations in
+// bulk, so one query per unnamed group becomes a burst of metadata requests —
+// issued from whatsmeow's serialized event goroutine, which stalls every other
+// event behind it. The placeholder name it falls back to is replaced the first
+// time a live message arrives in that group.
+func GetChatName(client *whatsmeow.Client, messageStore *store.MessageStore, jid types.JID, chatJID string, conversation interface{}, sender string, allowNetwork bool, logger waLog.Logger) string {
 	// First, check if chat already exists in database with a name
 	if existingName := messageStore.ChatName(chatJID); existingName != "" {
 		// Chat exists with a name, use that
