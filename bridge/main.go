@@ -219,11 +219,12 @@ func main() {
 	logger.Infof("Allowed media roots: %v", allowedMediaRoots)
 
 	restServer := &api.Server{
-		Client:     client,
-		Store:      messageStore,
-		Port:       port,
-		Token:      bridgeToken,
-		MediaRoots: allowedMediaRoots,
+		Client:       client,
+		Store:        messageStore,
+		Port:         port,
+		Token:        bridgeToken,
+		MediaRoots:   allowedMediaRoots,
+		SendLimiter:  ratelimit.New(messageStore, config.ColdMinInterval(), config.ColdDailyCap()),
 	}
 	restServer.Start()
 
@@ -233,11 +234,17 @@ func main() {
 
 	fmt.Println("REST server is running. Press Ctrl+C to disconnect and exit.")
 
-	go wa.RunReconnectLoop(client, logger, reconnectChan, exitChan)
+	// Shut down on an operator signal or on a terminal WhatsApp condition.
+	// Reconnection through transient drops is whatsmeow's job; the only thing
+	// left for this goroutine to decide is when to stop trying altogether.
+	select {
+	case <-exitChan:
+		fmt.Println("Disconnecting...")
+	case <-halter.Halted():
+		reason, detail := halter.Reason()
+		logger.Errorf("Halting: %s (%s)", reason, detail)
+		fmt.Printf("\nBridge halted: %s — see %s\n", reason, wa.HaltFilePath)
+	}
 
-	// Wait for termination signal
-	<-exitChan
-
-	fmt.Println("Disconnecting...")
 	client.Disconnect()
 }
