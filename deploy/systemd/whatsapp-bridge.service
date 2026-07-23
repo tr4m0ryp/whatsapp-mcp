@@ -11,8 +11,18 @@ WorkingDirectory=/opt/whatsapp_mcp/bridge
 # under WorkingDirectory on the VM's persistent disk, so the pairing survives
 # restarts and redeploys.
 ExecStart=/opt/whatsapp_mcp/bridge/whatsapp-bridge
-Restart=always
-RestartSec=5
+
+# on-failure, not always. The bridge exits 0 when WhatsApp has told it to stop
+# (ban, logout, outdated client) and records why in store/.halted; restarting
+# into that is what turns a temporary block into a permanent one. Genuine
+# crashes still exit non-zero and are retried.
+Restart=on-failure
+RestartSec=60
+# Three failures in fifteen minutes means the problem is not transient. The
+# previous 5s delay was wider than systemd's default 10s window, so the start
+# limit never actually engaged.
+StartLimitIntervalSec=900
+StartLimitBurst=3
 
 [Install]
 WantedBy=multi-user.target
