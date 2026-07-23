@@ -27,6 +27,9 @@ type Server struct {
 	Port       int
 	Token      string
 	MediaRoots []string
+	// SendLimiter meters messages that open new conversations. A nil limiter
+	// allows everything, which keeps tests that only exercise routing simple.
+	SendLimiter *ratelimit.Limiter
 }
 
 // NewMux builds the authenticated route table.
