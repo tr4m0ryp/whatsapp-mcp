@@ -20,9 +20,15 @@ type SendMessageRequest struct {
 }
 
 // SendMessageResponse represents the response for the send message API.
+//
+// RetryAfterSeconds is set only on a rate-limit refusal. It is surfaced as a
+// field rather than just the header so an MCP caller — which sees a JSON body,
+// not HTTP metadata — can read how long to wait and say so instead of retrying
+// blindly into the same limit.
 type SendMessageResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
+	Success           bool `json:"success"`
+	Message           string `json:"message"`
+	RetryAfterSeconds int    `json:"retry_after_seconds,omitempty"`
 }
 
 // handleSend sends a message (optionally with media or as a quoted reply).
