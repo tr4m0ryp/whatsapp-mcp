@@ -28,6 +28,10 @@ type Handler struct {
 	// are forwarded to the webhook.
 	ForwardSelf bool
 	Log         waLog.Logger
+	// Halter records terminal WhatsApp conditions (ban, logout, outdated
+	// client) and signals shutdown. Nil disables halting, which is what tests
+	// constructing a bare Handler want.
+	Halter *Halter
 }
 
 // handleMessageRevoke records a "delete for everyone" event by stamping
