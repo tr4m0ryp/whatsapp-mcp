@@ -33,9 +33,17 @@ const maxStreamReplacements = 3
 // is how a temporary block escalates. Transient drops need no code; terminal
 // conditions halt the process instead.
 func (h *Handler) RegisterEventHandlers() {
+	h.Client.AddEventHandler(h.EventHandler())
+}
+
+// EventHandler returns the event-routing closure that RegisterEventHandlers
+// installs. Exposed so tests can drive events without a live client, and so
+// the per-connection StreamReplaced counter has an obvious lifetime: it starts
+// fresh with each handler, not with each event.
+func (h *Handler) EventHandler() func(interface{}) {
 	var streamReplacements atomic.Int32
 
-	h.Client.AddEventHandler(func(evt interface{}) {
+	return func(evt interface{}) {
 		switch v := evt.(type) {
 		case *events.Message:
 			// Process regular messages
