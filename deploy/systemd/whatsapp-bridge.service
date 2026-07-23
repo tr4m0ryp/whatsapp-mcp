@@ -2,6 +2,11 @@
 Description=WhatsApp bridge (whatsmeow session + loopback REST API)
 After=network-online.target
 Wants=network-online.target
+# Three failures in fifteen minutes means the problem is not transient. These
+# are [Unit] directives (systemd >= 229); the previous 5s RestartSec was also
+# wider than the default 10s window, so no start limit ever engaged.
+StartLimitIntervalSec=900
+StartLimitBurst=3
 
 [Service]
 User=whatsapp
@@ -18,11 +23,6 @@ ExecStart=/opt/whatsapp_mcp/bridge/whatsapp-bridge
 # crashes still exit non-zero and are retried.
 Restart=on-failure
 RestartSec=60
-# Three failures in fifteen minutes means the problem is not transient. The
-# previous 5s delay was wider than systemd's default 10s window, so the start
-# limit never actually engaged.
-StartLimitIntervalSec=900
-StartLimitBurst=3
 
 [Install]
 WantedBy=multi-user.target
