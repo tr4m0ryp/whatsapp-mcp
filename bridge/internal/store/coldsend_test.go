@@ -65,7 +65,7 @@ func TestHasInboundHistory(t *testing.T) {
 		chat string
 		want bool
 	}{
-		{"friend@s.whatsapp.net", true},   // they wrote to us
+		{"friend@s.whatsapp.net", true},    // they wrote to us
 		{"stranger@s.whatsapp.net", false}, // only we have written
 		{"unknown@s.whatsapp.net", false},  // no rows at all
 	} {
