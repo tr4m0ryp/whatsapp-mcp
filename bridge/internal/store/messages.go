@@ -89,14 +89,20 @@ func (s *MessageStore) HasInboundHistory(chatJID string) (bool, error) {
 func (s *MessageStore) CountColdConversationsSince(since time.Time) (int, error) {
 	var count int
 	err := s.DB.QueryRow(
-		`SELECT COUNT(*) FROM (
-			SELECT chat_jid,
-			       MIN(timestamp) AS first_ts
+		`WITH firsts AS (
+			SELECT chat_jid, MIN(timestamp) AS first_ts
 			  FROM messages
 			 GROUP BY chat_jid
-			HAVING first_ts >= ?
-			   AND MAX(CASE WHEN timestamp = first_ts AND is_from_me = 1 THEN 1 ELSE 0 END) = 1
-		)`,
+		)
+		SELECT COUNT(*)
+		  FROM firsts f
+		 WHERE f.first_ts >= ?
+		   AND EXISTS (
+			SELECT 1 FROM messages m
+			 WHERE m.chat_jid = f.chat_jid
+			   AND m.timestamp = f.first_ts
+			   AND m.is_from_me = 1
+		   )`,
 		since,
 	).Scan(&count)
 	return count, err
