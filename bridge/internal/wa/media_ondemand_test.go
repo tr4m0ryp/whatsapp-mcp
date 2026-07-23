@@ -10,8 +10,44 @@ import (
 	"testing"
 	"time"
 
+	waProto "go.mau.fi/whatsmeow/binary/proto"
+	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
+	"google.golang.org/protobuf/proto"
+
 	"whatsapp-mcp/bridge/internal/testutil"
 )
+
+// buildDownloadableImageMessage builds an image message carrying every field
+// DownloadMedia needs (URL, media key, both hashes, length). The shared
+// buildImageMessage fixture deliberately omits them, which would make an
+// "it did not download" assertion vacuous.
+func buildDownloadableImageMessage(chat, sender types.JID, caption string) *events.Message {
+	img := &waProto.ImageMessage{
+		URL:           proto.String("https://mmg.whatsapp.net/v/t62.7118-24/fake.enc?ccb=11-4&oh=x&oe=y"),
+		DirectPath:    proto.String("/v/t62.7118-24/fake.enc"),
+		MediaKey:      []byte("0123456789abcdef0123456789abcdef"),
+		FileSHA256:    []byte("sha256-of-plaintext-------------"),
+		FileEncSHA256: []byte("sha256-of-ciphertext------------"),
+		FileLength:    proto.Uint64(4096),
+		Mimetype:      proto.String("image/jpeg"),
+	}
+	if caption != "" {
+		img.Caption = proto.String(caption)
+	}
+	return &events.Message{
+		Info: types.MessageInfo{
+			MessageSource: types.MessageSource{
+				Chat:     chat,
+				Sender:   sender,
+				IsFromMe: false,
+			},
+			ID:        "test-img-001",
+			Timestamp: time.Now(),
+		},
+		Message: &waProto.Message{ImageMessage: img},
+	}
+}
 
 // TestHandleMessage_MediaIsNotDownloadedOnArrival pins the on-demand policy.
 //
@@ -84,7 +120,7 @@ func TestWebhookMediaPayloadCarriesNoBytes(t *testing.T) {
 
 	client := testutil.NewClient(&testutil.MockLIDStore{})
 	ms := testutil.NewMessageStore(t)
-	newHandler(client, ms).HandleMessage(buildImageMessage(phonePN, phonePN, false, "caption"))
+	newHandler(client, ms).HandleMessage(buildDownloadableImageMessage(phonePN, phonePN, "caption"))
 
 	select {
 	case body := <-raw:
