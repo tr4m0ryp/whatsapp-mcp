@@ -62,6 +62,44 @@ func (s *MessageStore) MarkMessageDeleted(messageID, chatJID string, deletedAt t
 	return err
 }
 
+// HasInboundHistory reports whether a chat contains any message the other
+// side sent. It is the test for "has this person ever written to us", which
+// separates a reply from a cold contact on the send path.
+func (s *MessageStore) HasInboundHistory(chatJID string) (bool, error) {
+	var exists int
+	err := s.DB.QueryRow(
+		`SELECT EXISTS(SELECT 1 FROM messages WHERE chat_jid = ? AND is_from_me = 0)`,
+		chatJID,
+	).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists == 1, nil
+}
+
+// CountColdConversationsSince counts chats whose earliest archived message is
+// outbound and lands at or after since — i.e. conversations we started.
+//
+// Derived from the archive rather than tracked in its own counter so the
+// number survives restarts without extra state to keep in sync. The bridge
+// crashing or being redeployed must not hand the sender a fresh daily budget.
+func (s *MessageStore) CountColdConversationsSince(since time.Time) (int, error) {
+	var count int
+	err := s.DB.QueryRow(
+		`SELECT COUNT(*) FROM (
+			SELECT chat_jid,
+			       MIN(timestamp) AS first_ts
+			  FROM messages
+			 GROUP BY chat_jid
+			HAVING first_ts >= ?
+			   AND MAX(CASE WHEN timestamp = first_ts AND is_from_me = 1 THEN 1 ELSE 0 END) = 1
+			   AND MAX(CASE WHEN is_from_me = 0 THEN 1 ELSE 0 END) = 0
+		)`,
+		since,
+	).Scan(&count)
+	return count, err
+}
+
 // GetMessages returns the most recent messages from a chat.
 func (s *MessageStore) GetMessages(chatJID string, limit int) ([]Message, error) {
 	rows, err := s.DB.Query(
