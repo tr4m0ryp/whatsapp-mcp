@@ -88,23 +88,40 @@ func main() {
 		}
 	}
 
+	// Identify this linked device honestly.
+	//
+	// whatsmeow's defaults register the session as Os="whatsmeow",
+	// PlatformType=UNKNOWN, OsVersion="0.1". The first is the library's own
+	// name, which is what shows under Linked Devices on the phone; UNKNOWN is a
+	// platform value no real client sends. Both are transmitted in the pairing
+	// handshake, so this only takes effect when a new device is paired — an
+	// existing session keeps whatever it registered with.
+	wmstore.DeviceProps.Os = proto.String(config.DeviceName())
+	wmstore.DeviceProps.PlatformType = waCompanionReg.DeviceProps_DESKTOP.Enum()
+	wmstore.DeviceProps.OsVersion = proto.String(deviceOSVersion)
+
 	// Optionally request a full history sync at pair time.
 	//
 	// whatsmeow's default DeviceProps has RequireFullSync=false, which asks the
 	// primary device for "recent" history only (typically ~3 months, decided by
-	// the phone). Setting RequireFullSync=true with a large FullSyncDaysLimit
+	// the phone). Setting RequireFullSync=true with a larger FullSyncDaysLimit
 	// flips the handshake to request full-history mode. The phone still decides
 	// the actual cap. Only meaningful at pair time: for an already-paired
 	// session (whatsapp.db present), this is a no-op because no new pair
 	// handshake fires.
+	//
+	// The limits are deliberately modest. Asking for a decade of history and a
+	// 100 GB quota — as this once did — is not something any real client does,
+	// and the request itself is visible at the handshake.
 	if *fullHistoryPairFlag {
 		wmstore.DeviceProps.RequireFullSync = proto.Bool(true)
 		wmstore.DeviceProps.HistorySyncConfig = &waCompanionReg.DeviceProps_HistorySyncConfig{
-			FullSyncDaysLimit:   proto.Uint32(3650),
-			FullSyncSizeMbLimit: proto.Uint32(102400),
-			StorageQuotaMb:      proto.Uint32(102400),
+			FullSyncDaysLimit:   proto.Uint32(fullSyncDaysLimit),
+			FullSyncSizeMbLimit: proto.Uint32(fullSyncSizeMbLimit),
+			StorageQuotaMb:      proto.Uint32(fullSyncSizeMbLimit),
 		}
-		logger.Infof("--full-history-pair enabled: requesting full history (days=3650, sizeMb=102400)")
+		logger.Infof("--full-history-pair enabled: requesting history (days=%d, sizeMb=%d)",
+			fullSyncDaysLimit, fullSyncSizeMbLimit)
 	}
 
 	// Create client instance
