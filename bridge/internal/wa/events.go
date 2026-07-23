@@ -127,10 +127,15 @@ func (h *Handler) RegisterEventHandlers() {
 			}
 			// whatsmeow treats a replaced stream as a permanent disconnect and
 			// suppresses its own reconnect, so reclaiming the slot is up to us.
-			h.Log.Warnf("⚠️  Stream replaced by another session (%d/%d) — reconnecting", n, maxStreamReplacements)
-			if err := h.Client.Connect(); err != nil {
-				h.Log.Errorf("Failed to reclaim stream: %v", err)
-			}
+			// Off the event goroutine and after a pause, so a competing client
+			// that is merely slow to settle gets the chance to.
+			h.Log.Warnf("⚠️  Stream replaced by another session (%d/%d) — reconnecting in %s", n, maxStreamReplacements, streamReplacedBackoff)
+			go func() {
+				time.Sleep(streamReplacedBackoff)
+				if err := h.Client.Connect(); err != nil {
+					h.Log.Errorf("Failed to reclaim stream: %v", err)
+				}
+			}()
 
 		case *events.StreamError:
 			// Logged only. Recovery belongs to whatsmeow; a StreamError that
