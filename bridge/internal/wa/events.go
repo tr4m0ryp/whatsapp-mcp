@@ -8,9 +8,10 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-// streamReplacedBackoff is how long to wait before reclaiming a slot another
-// session took, so a client that is merely slow to settle can finish first.
-const streamReplacedBackoff = 30 * time.Second
+// defaultStreamReclaimDelay is how long to wait before reclaiming a slot
+// another session took, so a client that is merely slow to settle can finish
+// first. Overridable per Handler for tests.
+const defaultStreamReclaimDelay = 30 * time.Second
 
 // maxStreamReplacements is how many times another WhatsApp Web session may
 // take this device's slot before the bridge gives up.
@@ -142,9 +143,10 @@ func (h *Handler) EventHandler() func(interface{}) {
 			// suppresses its own reconnect, so reclaiming the slot is up to us.
 			// Off the event goroutine and after a pause, so a competing client
 			// that is merely slow to settle gets the chance to.
-			h.Log.Warnf("⚠️  Stream replaced by another session (%d/%d) — reconnecting in %s", n, maxStreamReplacements, streamReplacedBackoff)
+			delay := h.streamReclaimDelay()
+			h.Log.Warnf("⚠️  Stream replaced by another session (%d/%d) — reconnecting in %s", n, maxStreamReplacements, delay)
 			go func() {
-				time.Sleep(streamReplacedBackoff)
+				time.Sleep(delay)
 				if err := h.reconnect(); err != nil {
 					h.Log.Errorf("Failed to reclaim stream: %v", err)
 				}
@@ -156,6 +158,14 @@ func (h *Handler) EventHandler() func(interface{}) {
 			h.Log.Errorf("❌ Stream error: %v", v.Code)
 		}
 	}
+}
+
+// streamReclaimDelay resolves the configured pause before reclaiming a slot.
+func (h *Handler) streamReclaimDelay() time.Duration {
+	if h.StreamReclaimDelay > 0 {
+		return h.StreamReclaimDelay
+	}
+	return defaultStreamReclaimDelay
 }
 
 // reconnect reclaims the connection, through Reconnect when set. The seam

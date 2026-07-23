@@ -35,6 +35,9 @@ type Handler struct {
 	// Reconnect reclaims the connection after another session took this
 	// device's slot. Nil uses Client.Connect.
 	Reconnect func() error
+	// StreamReclaimDelay overrides how long to wait before reclaiming a
+	// replaced stream. Zero uses the default.
+	StreamReclaimDelay time.Duration
 }
 
 // handleMessageRevoke records a "delete for everyone" event by stamping
