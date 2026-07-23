@@ -43,7 +43,7 @@ func TestGetChatName_LocalContactFallbackScopesToActiveAccount(t *testing.T) {
 		t.Fatalf("seed whatsmeow contacts: %v", err)
 	}
 
-	got := wa.GetChatName(client, ms, phonePN, phonePN.String(), nil, "Sender Fallback", logger)
+	got := wa.GetChatName(client, ms, phonePN, phonePN.String(), nil, "Sender Fallback", true, logger)
 	if got != "Active Push" {
 		t.Fatalf("GetChatName() = %q, want active account contact name", got)
 	}
@@ -61,7 +61,7 @@ func TestGetChatName_LocalContactFallbackMissingTableFallsBack(t *testing.T) {
 	t.Cleanup(func() { _ = waDB.Close() })
 	ms.WaDB = waDB
 
-	got := wa.GetChatName(client, ms, phonePN, phonePN.String(), nil, "Sender Fallback", logger)
+	got := wa.GetChatName(client, ms, phonePN, phonePN.String(), nil, "Sender Fallback", true, logger)
 	if got != "Sender Fallback" {
 		t.Fatalf("GetChatName() = %q, want sender fallback", got)
 	}
