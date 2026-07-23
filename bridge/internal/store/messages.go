@@ -83,7 +83,7 @@ func (s *MessageStore) HasInboundHistory(chatJID string) (bool, error) {
 // Derived from the archive rather than tracked in its own counter so the
 // number survives restarts without extra state to keep in sync. The bridge
 // crashing or being redeployed must not hand the sender a fresh daily budget.
-func (s *MessageStore) CountColdConversationsSince(since time.Time) (int, error) {
+//
 // A conversation counts once it is opened, whether or not the recipient
 // replied — a reply does not refund the budget it cost to reach them.
 func (s *MessageStore) CountColdConversationsSince(since time.Time) (int, error) {
