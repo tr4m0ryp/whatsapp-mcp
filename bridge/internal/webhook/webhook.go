@@ -4,18 +4,12 @@ package webhook
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
 )
-
-// maxMediaBase64Bytes is the maximum file size that will be base64-encoded and
-// included in a webhook payload. Files larger than this limit are skipped to
-// avoid excessive memory use and oversized HTTP requests.
-const maxMediaBase64Bytes = 10 * 1024 * 1024 // 10 MB
 
 // client is used for all outbound webhook POSTs. The 30-second timeout
 // prevents a slow or unreachable endpoint from blocking message handling
@@ -60,12 +54,13 @@ type Payload struct {
 	QuotedMessageID string `json:"quotedMessageId,omitempty"`
 	QuotedSender    string `json:"quotedSender,omitempty"`
 	QuotedContent   string `json:"quotedContent,omitempty"`
-	// Media fields - populated when the message contains an image attachment
-	MessageID     string `json:"messageId,omitempty"`
-	MediaType     string `json:"mediaType,omitempty"`
-	MimeType      string `json:"mimeType,omitempty"`
-	MediaFilename string `json:"mediaFilename,omitempty"`
-	MediaBase64   string `json:"mediaBase64,omitempty"`
+	// Media fields - populated when the message carries an attachment. The
+	// bytes are deliberately absent: fetch them with MessageID + ChatJID via
+	// download_media (MCP) or /api/download.
+	MessageID       string `json:"messageId,omitempty"`
+	MediaType       string `json:"mediaType,omitempty"`
+	MediaFilename   string `json:"mediaFilename,omitempty"`
+	MediaFileLength uint64 `json:"mediaFileLength,omitempty"`
 	// Reaction fields - populated when EventType is "reaction".
 	ReactionToMessageID string  `json:"reactionToMessageId,omitempty"`
 	ReactionEmoji       *string `json:"reactionEmoji,omitempty"`
