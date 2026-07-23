@@ -190,8 +190,7 @@ func main() {
 		auth.PrintTokenBanner(bridgeToken, port)
 	}
 
-	// Channel to signal reconnection needs
-	reconnectChan := make(chan bool, 1)
+	halter := wa.NewHalter()
 
 	handler := &wa.Handler{
 		Client:      client,
@@ -199,11 +198,13 @@ func main() {
 		Webhook:     &webhook.Sender{Token: bridgeToken},
 		ForwardSelf: forwardSelf,
 		Log:         logger,
+		Halter:      halter,
 	}
-	handler.RegisterEventHandlers(reconnectChan)
+	handler.RegisterEventHandlers()
 
-	if !wa.Connect(client, logger) {
-		return
+	if err := wa.Connect(client, logger, config.AllowPairing()); err != nil {
+		logger.Errorf("Could not connect to WhatsApp: %v", err)
+		os.Exit(1)
 	}
 
 	fmt.Println("\n✓ Connected to WhatsApp!")
