@@ -130,29 +130,21 @@ func (s *Sender) SendText(sender, content, chatJID string, isFromMe bool, quoted
 	})
 }
 
-// SendWithMedia sends a message to the webhook endpoint including base64-encoded
-// image data read from localPath. If localPath is empty or unreadable the webhook is
-// still sent – just without the MediaBase64 field so the text caption is not lost.
+// SendWithMedia sends a message carrying an attachment, describing the media
+// rather than embedding it.
+//
+// The payload used to include the file base64-encoded, which required the
+// bridge to download every attachment on arrival just in case a consumer
+// wanted it. Nothing is downloaded now, so a consumer that wants the bytes
+// fetches them with the message ID and chat JID below — through the MCP
+// download_media tool, or /api/download directly.
 func (s *Sender) SendWithMedia(
 	sender, content, chatJID string,
 	isFromMe bool,
 	quotedMessageID, quotedSender, quotedContent string,
-	messageID, mediaType, mimeType, mediaFilename, localPath string,
+	messageID, mediaType, mediaFilename string,
+	fileLength uint64,
 ) {
-	var mediaBase64 string
-	if localPath != "" {
-		info, statErr := os.Stat(localPath)
-		if statErr != nil {
-			fmt.Printf("⚠ Could not stat media file for base64 encoding: %v\n", statErr)
-		} else if info.Size() > maxMediaBase64Bytes {
-			fmt.Printf("⚠ Media file too large for base64 encoding (%d bytes), skipping MediaBase64\n", info.Size())
-		} else if data, err := os.ReadFile(localPath); err == nil {
-			mediaBase64 = base64.StdEncoding.EncodeToString(data)
-		} else {
-			fmt.Printf("⚠ Could not read media file for base64 encoding: %v\n", err)
-		}
-	}
-
 	s.send(Payload{
 		Sender:          sender,
 		Content:         content,
@@ -163,9 +155,8 @@ func (s *Sender) SendWithMedia(
 		QuotedContent:   quotedContent,
 		MessageID:       messageID,
 		MediaType:       mediaType,
-		MimeType:        mimeType,
 		MediaFilename:   mediaFilename,
-		MediaBase64:     mediaBase64,
+		MediaFileLength: fileLength,
 	})
 }
 
