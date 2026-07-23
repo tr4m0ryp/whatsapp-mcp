@@ -81,6 +81,17 @@ sibling `bridge/store/`).
   and outbound media paths are confined to WHATSAPP_MEDIA_ROOTS.
 - **Unknown data stays honest:** adapters store NULL/empty over guesses;
   revoked messages keep content but gain `deleted_at`.
+- **When WhatsApp says stop, stop.** whatsmeow owns reconnection; the bridge
+  adds none of its own. Terminal events (logout, temporary ban, outdated
+  client, non-transient connect failure) write `store/.halted` and exit 0,
+  and startup refuses to run while that file exists. Retrying through a
+  rejection is what escalates a temporary block into a permanent ban.
+- **Cold outbound is metered, replies are not.** A send to a JID with no
+  inbound history is spaced and daily-capped (`internal/ratelimit`);
+  `/api/send` answers 429 with `retry_after_seconds`. Never add a bypass.
+- **Nothing is fetched speculatively.** No media on arrival, no group
+  metadata during history sync -- both burst requests that no real linked
+  device makes.
 - No login-walled tricks beyond the official multi-device pairing; the
   store directory contains the session and must never be committed.
 
