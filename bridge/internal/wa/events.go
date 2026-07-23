@@ -1,22 +1,34 @@
 package wa
 
 import (
-	"time"
+	"fmt"
+	"sync/atomic"
 
 	"go.mau.fi/whatsmeow/types/events"
 )
 
+// maxStreamReplacements is how many times another WhatsApp Web session may
+// take this device's slot before the bridge gives up.
+//
+// Only one web session can hold the slot at a time. Reclaiming it on every
+// StreamReplaced means the bridge and a browser session take turns evicting
+// each other indefinitely — and repeated session takeovers are exactly what a
+// shared or stolen session looks like from the server's side. Reconnecting a
+// couple of times covers the benign case (a stale tab that gets closed);
+// beyond that the competing client is not going away and something has to
+// yield. It is the bridge.
+const maxStreamReplacements = 3
+
 // RegisterEventHandlers wires the Handler into the whatsmeow event stream.
-// Connection-loss events push into reconnectChan (non-blocking) so the
-// reconnect loop in connect.go can react.
-func (h *Handler) RegisterEventHandlers(reconnectChan chan<- bool) {
-	signalReconnect := func() {
-		select {
-		case reconnectChan <- true:
-		default:
-			// Channel already has a reconnect signal
-		}
-	}
+//
+// Reconnection is deliberately NOT handled here. whatsmeow owns it: it retries
+// with its own backoff and, critically, suppresses that retry for failures the
+// server means as final. A second reconnect driver layered on top raced the
+// library's and reconnected through rejections it had chosen to honour, which
+// is how a temporary block escalates. Transient drops need no code; terminal
+// conditions halt the process instead.
+func (h *Handler) RegisterEventHandlers() {
+	var streamReplacements atomic.Int32
 
 	h.Client.AddEventHandler(func(evt interface{}) {
 		switch v := evt.(type) {
@@ -80,34 +92,59 @@ func (h *Handler) RegisterEventHandlers(reconnectChan chan<- bool) {
 		case *events.Connected:
 			h.Log.Infof("✓ Successfully connected to WhatsApp servers")
 
-		case *events.LoggedOut:
-			h.Log.Warnf("⚠️  Device logged out, please scan QR code to log in again")
-
 		case *events.Disconnected:
-			h.Log.Warnf("⚠️  Disconnected from WhatsApp servers, will attempt reconnection...")
-			signalReconnect()
+			// Transient. whatsmeow's own auto-reconnect handles it.
+			h.Log.Warnf("⚠️  Disconnected from WhatsApp servers, awaiting automatic reconnect...")
 
-		case *events.ConnectFailure:
-			h.Log.Errorf("❌ Connection failure: %v", v.Reason)
-			signalReconnect()
+		case *events.LoggedOut:
+			// whatsmeow has already deleted the local session by the time this
+			// fires. Continuing would take the pairing path on the next
+			// connect and emit QR codes nobody is there to scan.
+			h.Log.Errorf("❌ Device logged out (reason: %s)", v.Reason)
+			h.halt(HaltLoggedOut, fmt.Sprintf("reason=%s on_connect=%v", v.Reason, v.OnConnect))
 
-		case *events.StreamError:
-			h.Log.Errorf("❌ Stream error: %v", v.Code)
-			signalReconnect()
-
-		case *events.StreamReplaced:
-			// Another WhatsApp Web session took our slot. whatsmeow treats this
-			// as a "permanent" disconnect and suppresses the Disconnected event,
-			// so we must handle it explicitly. Wait briefly to avoid ping-ponging
-			// with the other client, then reconnect.
-			h.Log.Warnf("⚠️  Stream replaced by another session — will reconnect after 30s")
-			go func() {
-				time.Sleep(30 * time.Second)
-				signalReconnect()
-			}()
+		case *events.TemporaryBan:
+			h.Log.Errorf("❌ Account temporarily banned: code=%s expires_in=%s", v.Code, v.Expire)
+			h.halt(HaltTemporaryBan, fmt.Sprintf("code=%s expire=%s", v.Code, v.Expire))
 
 		case *events.ClientOutdated:
-			h.Log.Errorf("❌ Client outdated - please update whatsmeow library")
+			h.Log.Errorf("❌ Client outdated — whatsmeow must be updated before reconnecting")
+			h.halt(HaltClientOutdated, "WhatsApp rejected the client version (405)")
+
+		case *events.ConnectFailure:
+			// whatsmeow only dispatches this for failures it has decided not
+			// to auto-reconnect through; transient 500/503s are handled
+			// internally and never reach here.
+			h.Log.Errorf("❌ Connection failure: %v (%s)", v.Reason, v.Message)
+			h.halt(HaltConnectFailure, fmt.Sprintf("reason=%d/%v message=%q", int(v.Reason), v.Reason, v.Message))
+
+		case *events.StreamReplaced:
+			n := streamReplacements.Add(1)
+			if n >= maxStreamReplacements {
+				h.Log.Errorf("❌ Stream replaced %d times — another session keeps taking the slot", n)
+				h.halt(HaltStreamReplaced, fmt.Sprintf("replaced %d times", n))
+				return
+			}
+			// whatsmeow treats a replaced stream as a permanent disconnect and
+			// suppresses its own reconnect, so reclaiming the slot is up to us.
+			h.Log.Warnf("⚠️  Stream replaced by another session (%d/%d) — reconnecting", n, maxStreamReplacements)
+			if err := h.Client.Connect(); err != nil {
+				h.Log.Errorf("Failed to reclaim stream: %v", err)
+			}
+
+		case *events.StreamError:
+			// Logged only. Recovery belongs to whatsmeow; a StreamError that
+			// is actually terminal arrives again as ConnectFailure/LoggedOut.
+			h.Log.Errorf("❌ Stream error: %v", v.Code)
 		}
 	})
+}
+
+// halt records a terminal condition when a Halter is configured. Tests and
+// callers that construct a bare Handler still work — they simply do not stop.
+func (h *Handler) halt(reason HaltReason, detail string) {
+	if h.Halter == nil {
+		return
+	}
+	h.Halter.Halt(reason, detail)
 }
