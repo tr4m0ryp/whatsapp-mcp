@@ -23,11 +23,16 @@ import (
 // event behind it. The placeholder name it falls back to is replaced the first
 // time a live message arrives in that group.
 func GetChatName(client *whatsmeow.Client, messageStore *store.MessageStore, jid types.JID, chatJID string, conversation interface{}, sender string, allowNetwork bool, logger waLog.Logger) string {
-	// First, check if chat already exists in database with a name
+	// First, check if chat already exists in database with a name.
+	// A stored placeholder does not count as a name when we are allowed to
+	// look one up: history sync writes placeholders for groups precisely
+	// because it must not make network calls, and this is where they get
+	// upgraded to the real thing.
 	if existingName := messageStore.ChatName(chatJID); existingName != "" {
-		// Chat exists with a name, use that
-		logger.Infof("Using existing chat name for %s: %s", chatJID, existingName)
-		return existingName
+		if !(allowNetwork && existingName == groupPlaceholderName(jid)) {
+			logger.Infof("Using existing chat name for %s: %s", chatJID, existingName)
+			return existingName
+		}
 	}
 
 	// Need to determine chat name
