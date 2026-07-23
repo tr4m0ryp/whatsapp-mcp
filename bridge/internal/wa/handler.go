@@ -174,52 +174,31 @@ func (h *Handler) HandleMessage(msg *events.Message) {
 		logger.Warnf("Failed to store message: %v", err)
 	}
 
-	// For image messages, download media synchronously so we can include the base64
-	// payload in the webhook. Other media types (video, audio, document) are still
-	// downloaded asynchronously since they are not passed to the AI vision pipeline.
-	var imageDownloadPath string
-	var imageMimeType string
-	if mediaType == "image" && url != "" && len(mediaKey) > 0 {
-		logger.Infof("Downloading image media for message %s (synchronous)", msg.Info.ID)
-		success, _, _, dlPath, dlErr := DownloadMedia(client, messageStore, msg.Info.ID, chatJID)
-		if success && dlErr == nil {
-			imageDownloadPath = dlPath
-			imageMimeType = sniffFileMimeType(dlPath)
-			logger.Infof("✅ Image downloaded: %s (%s)", dlPath, imageMimeType)
-		} else {
-			logger.Warnf("❌ Image download failed: %v", dlErr)
-			// Fall back to async download so media is cached for future MCP tool calls
-			go func() {
-				_, _, _, _, _ = DownloadMedia(client, messageStore, msg.Info.ID, chatJID)
-			}()
-		}
-	} else if mediaType != "" && mediaType != "image" && url != "" && len(mediaKey) > 0 {
-		// Non-image media: async download for caching only (not sent to vision pipeline)
-		logger.Infof("Auto-downloading %s media for message %s", mediaType, msg.Info.ID)
-		go func() {
-			success, _, _, downloadPath, err := DownloadMedia(client, messageStore, msg.Info.ID, chatJID)
-			if success && err == nil {
-				logger.Infof("✅ Auto-downloaded media: %s", downloadPath)
-			} else {
-				logger.Warnf("❌ Auto-download failed: %v", err)
-			}
-		}()
-	}
+	// Media is NOT downloaded here.
+	//
+	// The bridge used to fetch every attachment the moment it arrived — images
+	// synchronously, everything else in an unbounded goroutine. A real linked
+	// device downloads lazily, only what the user opens, so pulling 100% of
+	// media from every chat is an archiving pattern with no view activity
+	// behind it, and a history-sync burst could launch hundreds of concurrent
+	// CDN fetches. The row below carries everything needed to fetch on demand
+	// (url, media key, both hashes, length), so /api/download can retrieve it
+	// whenever a caller actually wants the bytes.
 
 	// Send webhook for incoming messages.
 	// Forward self-messages when ForwardSelf is set.
-	// Always forward image messages (even without a text caption) so the AI vision
-	// pipeline can analyse the image content.
+	// Media messages are always forwarded, even without a text caption, so a
+	// consumer can decide whether to fetch the attachment.
 	shouldForward := h.ForwardSelf || !msg.Info.IsFromMe
 	hasText := content != ""
-	hasImage := mediaType == "image"
+	hasMedia := mediaType != ""
 
-	if shouldForward && (hasText || hasImage) {
-		if hasImage {
+	if shouldForward && (hasText || hasMedia) {
+		if hasMedia {
 			h.Webhook.SendWithMedia(
 				sender, content, chatJID, msg.Info.IsFromMe,
 				quotedMessageID, quotedSender, quotedContent,
-				msg.Info.ID, mediaType, imageMimeType, filename, imageDownloadPath,
+				msg.Info.ID, mediaType, filename, fileLength,
 			)
 		} else {
 			h.Webhook.SendText(sender, content, chatJID, msg.Info.IsFromMe, quotedMessageID, quotedSender, quotedContent)
