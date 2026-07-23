@@ -56,8 +56,9 @@ Every file < 300 lines; split into deeper subpackages before exceeding it.
 ## Running
 
 ```bash
-# 1. Bridge (QR pairing on first run; prints the REST token once)
-cd bridge && go run .
+# 1. Bridge. Pairing is opt-in and interactive-only; the first run needs it.
+#    Prints the REST token once.
+cd bridge && WHATSAPP_ALLOW_PAIRING=true go run .
 
 # 2. MCP server (stdio by default; remote via MCP_TRANSPORT=http + OAuth,
 #    same auth pattern as finding_house_mcp -- see .env.example)
