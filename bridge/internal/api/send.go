@@ -82,9 +82,39 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("→ /api/send recipient=%q message_len=%d has_media=%v\n",
 		req.Recipient, len(req.Message), resolvedMediaPath != "")
 
+	// Meter conversations we are starting ourselves. Replies into existing
+	// chats are unmetered — the limit exists to slow down cold contact, which
+	// is what recipients report as spam, not to throttle ordinary
+	// conversation. The chat is resolved the same way wa.SendMessage persists
+	// it, so the lookup matches the rows that will be written.
+	decision := s.SendLimiter.Check(wa.StorageChatJID(s.Client, req.Recipient))
+	if !decision.Allowed {
+		retryAfter := int(decision.RetryAfter.Round(time.Second) / time.Second)
+		fmt.Printf("← /api/send rate-limited recipient=%q reason=%q retry_after=%ds\n",
+			req.Recipient, decision.Reason, retryAfter)
+		w.Header().Set("Content-Type", "application/json")
+		if retryAfter > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+		}
+		w.WriteHeader(http.StatusTooManyRequests)
+		_ = json.NewEncoder(w).Encode(SendMessageResponse{
+			Success:           false,
+			Message:           "Rate limited: " + decision.Reason,
+			RetryAfterSeconds: retryAfter,
+		})
+		return
+	}
+
 	// Send the message
 	success, message := wa.SendMessage(s.Client, s.Store, req.Recipient, req.Message, resolvedMediaPath, req.QuotedMessageID, req.QuotedSenderJID, req.QuotedContent)
 	fmt.Printf("← /api/send success=%v status=%q\n", success, message)
+
+	// Only a delivered cold message consumes the interval budget; a failed
+	// send should not lock out the retry.
+	if success && decision.Cold {
+		s.SendLimiter.RecordCold()
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 
 	if !success {
