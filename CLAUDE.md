@@ -9,10 +9,10 @@ fully ported test suite.
 
 1. **Go bridge** (`bridge/`) -- links to the WhatsApp account via whatsmeow
    (WhatsApp Web multi-device). Archives every message/chat/call into
-   `bridge/store/messages.db` (SQLite), auto-downloads media, forwards
-   inbound events to an optional webhook, and exposes a loopback REST API
-   (`/api/send|react|download|typing|health`) guarded by a bearer token +
-   Host allow-list.
+   `bridge/store/messages.db` (SQLite), forwards inbound events to an
+   optional webhook, and exposes a loopback REST API
+   (`/api/send|react|download|health`) guarded by a bearer token +
+   Host allow-list. Media is fetched on demand, never on arrival.
 2. **Python MCP server** (`server/`) -- FastMCP app exposing 14 tools.
    Reads happen directly against the bridge's SQLite databases; writes
    (send message/file/audio/reaction, download media) go through the
