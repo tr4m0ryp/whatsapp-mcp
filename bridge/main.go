@@ -33,6 +33,15 @@ import (
 var fullHistoryPairFlag = flag.Bool("full-history-pair", false,
 	"Request full history at pair time (only effective when re-pairing; no-op for existing sessions)")
 
+// History-sync limits requested at pair time under --full-history-pair, and
+// the OS version this device reports. Kept within the range a real linked
+// desktop client would ask for.
+const (
+	fullSyncDaysLimit   = 365
+	fullSyncSizeMbLimit = 2048
+	deviceOSVersion     = "1.0.0"
+)
+
 func main() {
 	flag.Parse()
 
