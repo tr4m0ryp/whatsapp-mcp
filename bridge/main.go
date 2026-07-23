@@ -23,6 +23,7 @@ import (
 	"whatsapp-mcp/bridge/internal/auth"
 	"whatsapp-mcp/bridge/internal/config"
 	"whatsapp-mcp/bridge/internal/media"
+	"whatsapp-mcp/bridge/internal/ratelimit"
 	"whatsapp-mcp/bridge/internal/store"
 	"whatsapp-mcp/bridge/internal/wa"
 	"whatsapp-mcp/bridge/internal/webhook"
@@ -33,14 +34,15 @@ import (
 var fullHistoryPairFlag = flag.Bool("full-history-pair", false,
 	"Request full history at pair time (only effective when re-pairing; no-op for existing sessions)")
 
-// History-sync limits requested at pair time under --full-history-pair, and
-// the OS version this device reports. Kept within the range a real linked
-// desktop client would ask for.
+// History-sync limits requested at pair time under --full-history-pair. Kept
+// within the range a real linked desktop client would ask for.
 const (
 	fullSyncDaysLimit   = 365
 	fullSyncSizeMbLimit = 2048
-	deviceOSVersion     = "1.0.0"
 )
+
+// deviceVersion is the app version this device reports at pair time.
+var deviceVersion = [3]uint32{1, 0, 0}
 
 func main() {
 	flag.Parse()
@@ -105,9 +107,8 @@ func main() {
 	// platform value no real client sends. Both are transmitted in the pairing
 	// handshake, so this only takes effect when a new device is paired — an
 	// existing session keeps whatever it registered with.
-	wmstore.DeviceProps.Os = proto.String(config.DeviceName())
+	wmstore.SetOSInfo(config.DeviceName(), deviceVersion)
 	wmstore.DeviceProps.PlatformType = waCompanionReg.DeviceProps_DESKTOP.Enum()
-	wmstore.DeviceProps.OsVersion = proto.String(deviceOSVersion)
 
 	// Optionally request a full history sync at pair time.
 	//
@@ -124,11 +125,14 @@ func main() {
 	// and the request itself is visible at the handshake.
 	if *fullHistoryPairFlag {
 		wmstore.DeviceProps.RequireFullSync = proto.Bool(true)
-		wmstore.DeviceProps.HistorySyncConfig = &waCompanionReg.DeviceProps_HistorySyncConfig{
-			FullSyncDaysLimit:   proto.Uint32(fullSyncDaysLimit),
-			FullSyncSizeMbLimit: proto.Uint32(fullSyncSizeMbLimit),
-			StorageQuotaMb:      proto.Uint32(fullSyncSizeMbLimit),
-		}
+		// Adjust the limits in place rather than replacing the struct: the
+		// default carries a dozen capability flags the server expects a
+		// companion device to declare, and swapping in a three-field literal
+		// silently drops all of them.
+		hsc := wmstore.DeviceProps.HistorySyncConfig
+		hsc.FullSyncDaysLimit = proto.Uint32(fullSyncDaysLimit)
+		hsc.FullSyncSizeMbLimit = proto.Uint32(fullSyncSizeMbLimit)
+		hsc.StorageQuotaMb = proto.Uint32(fullSyncSizeMbLimit)
 		logger.Infof("--full-history-pair enabled: requesting history (days=%d, sizeMb=%d)",
 			fullSyncDaysLimit, fullSyncSizeMbLimit)
 	}
@@ -219,12 +223,12 @@ func main() {
 	logger.Infof("Allowed media roots: %v", allowedMediaRoots)
 
 	restServer := &api.Server{
-		Client:       client,
-		Store:        messageStore,
-		Port:         port,
-		Token:        bridgeToken,
-		MediaRoots:   allowedMediaRoots,
-		SendLimiter:  ratelimit.New(messageStore, config.ColdMinInterval(), config.ColdDailyCap()),
+		Client:      client,
+		Store:       messageStore,
+		Port:        port,
+		Token:       bridgeToken,
+		MediaRoots:  allowedMediaRoots,
+		SendLimiter: ratelimit.New(messageStore, config.ColdMinInterval(), config.ColdDailyCap()),
 	}
 	restServer.Start()
 
