@@ -15,6 +15,11 @@ WorkingDirectory=/opt/whatsapp_mcp/bridge
 # store/ (whatsapp.db session + messages.db archive + .bridge-token) lives
 # under WorkingDirectory on the VM's persistent disk, so the pairing survives
 # restarts and redeploys.
+#
+# Optional (leading '-'): device name and cold-send limits. See .env.example.
+# WHATSAPP_ALLOW_PAIRING belongs in the interactive pairing command, not here —
+# the service must never be able to start a pairing flow on its own.
+EnvironmentFile=-/etc/whatsapp-bridge.env
 ExecStart=/opt/whatsapp_mcp/bridge/whatsapp-bridge
 
 # on-failure, not always. The bridge exits 0 when WhatsApp has told it to stop
