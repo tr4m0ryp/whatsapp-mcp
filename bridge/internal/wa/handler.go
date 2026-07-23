@@ -32,6 +32,9 @@ type Handler struct {
 	// client) and signals shutdown. Nil disables halting, which is what tests
 	// constructing a bare Handler want.
 	Halter *Halter
+	// Reconnect reclaims the connection after another session took this
+	// device's slot. Nil uses Client.Connect.
+	Reconnect func() error
 }
 
 // handleMessageRevoke records a "delete for everyone" event by stamping

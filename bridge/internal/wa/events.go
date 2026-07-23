@@ -145,7 +145,7 @@ func (h *Handler) EventHandler() func(interface{}) {
 			h.Log.Warnf("⚠️  Stream replaced by another session (%d/%d) — reconnecting in %s", n, maxStreamReplacements, streamReplacedBackoff)
 			go func() {
 				time.Sleep(streamReplacedBackoff)
-				if err := h.Client.Connect(); err != nil {
+				if err := h.reconnect(); err != nil {
 					h.Log.Errorf("Failed to reclaim stream: %v", err)
 				}
 			}()
@@ -155,7 +155,16 @@ func (h *Handler) EventHandler() func(interface{}) {
 			// is actually terminal arrives again as ConnectFailure/LoggedOut.
 			h.Log.Errorf("❌ Stream error: %v", v.Code)
 		}
-	})
+	}
+}
+
+// reconnect reclaims the connection, through Reconnect when set. The seam
+// exists so tests can observe reclaim attempts without a live socket.
+func (h *Handler) reconnect() error {
+	if h.Reconnect != nil {
+		return h.Reconnect()
+	}
+	return h.Client.Connect()
 }
 
 // halt records a terminal condition when a Halter is configured. Tests and
