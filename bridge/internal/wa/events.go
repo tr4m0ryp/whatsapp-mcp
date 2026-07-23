@@ -3,9 +3,14 @@ package wa
 import (
 	"fmt"
 	"sync/atomic"
+	"time"
 
 	"go.mau.fi/whatsmeow/types/events"
 )
+
+// streamReplacedBackoff is how long to wait before reclaiming a slot another
+// session took, so a client that is merely slow to settle can finish first.
+const streamReplacedBackoff = 30 * time.Second
 
 // maxStreamReplacements is how many times another WhatsApp Web session may
 // take this device's slot before the bridge gives up.
