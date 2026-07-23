@@ -69,14 +69,15 @@ func GetChatName(client *whatsmeow.Client, messageStore *store.MessageStore, jid
 		}
 
 		// If we didn't get a name, try group info
-		if name == "" {
+		if name == "" && allowNetwork {
 			groupInfo, err := client.GetGroupInfo(context.Background(), jid)
 			if err == nil && groupInfo.Name != "" {
 				name = groupInfo.Name
-			} else {
-				// Fallback name for groups
-				name = fmt.Sprintf("Group %s", jid.User)
 			}
+		}
+		if name == "" {
+			// Fallback name for groups
+			name = fmt.Sprintf("Group %s", jid.User)
 		}
 
 		logger.Infof("Using group name: %s", name)
