@@ -32,6 +32,10 @@ type Store interface {
 // Decision is the outcome of a limit check.
 type Decision struct {
 	Allowed bool
+	// Cold reports whether this send opens a new conversation. Callers pass
+	// it back to RecordCold after a successful send so the interval clock
+	// only advances on messages that actually went out.
+	Cold bool
 	// Reason is a human-readable explanation, empty when allowed.
 	Reason string
 	// RetryAfter is how long the caller should wait, zero when allowed or
